@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Vue Calendar</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="main.js"></script>
+    <style>
+        .grey{
+            opacity: .5;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class='w-full sm:w-1/2 md:w-1/3 lg:w-1/4 xl:w-1/6 mb-4 bg-white mx-auto pt-10'>
+            <div class='bg-orange text-white py-1 text-center tracking-wide'>
+                <a class='text-2xl cursor-pointer' @click='movePreviousYear'>&laquo;</a>
+                    <a class='text-2xl cursor-pointer' @click='movePreviousMonth'>&lsaquo;</a>
+                        <span class='title cursor-pointer' @click='moveThisMonth'>
+                            {{ header.label }}
+                        </span>
+                    <a class='text-2xl cursor-pointer' @click='moveNextMonth'>&rsaquo;</a>
+                <a class='text-2xl cursor-pointer' @click='moveNextYear'>&raquo;</a>
+            </div>
+            <div class='pt-3 px-2 rounded-b flex justify-between'>
+                <div class='w-1/3 mb-4 text-center text-xs font-bold cursor-pointer' v-for='weekday in weekdays'>
+                    {{ weekday.label }}
+                </div>
+            </div>
+            <div class='pb-2 px-2 flex justify-between' v-for='week in weeks'>
+                <div class='w-1/3 mb-4 text-center text-xs font-bold cursor-pointer' :class='{today: day.isToday,
+                    grey:day.afterMonth || day.beforeMonth}' v-for='day in week'>
+                    <span v-if="day.afterMonth" class='title cursor-pointer'>
+                        {{day.label}}
+                    </span>                    
+                    <span v-else-if="day.beforeMonth" class='title cursor-pointer'>
+                        {{day.label}}
+                    </span>
+                    <span v-else class='title cursor-pointer' @click="grabValue(day.label + ' ' + header.label)" >
+                        {{day.label}}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="border-r border-b border-l border-grey-light lg:border-l-0 lg:border-t lg:border-grey-light bg-white rounded-b lg:rounded-b-none lg:rounded-r p-4 flex flex-col justify-between leading-normal">
+            <div class="mb-8">
+              <div class="text-black font-bold text-xl mb-2">Your selected date:</div>
+              <p class="text-grey-darker text-base">{{toDisplay}}</p>
+            </div>
+        </div>
+    </div>
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            month: todayComps.month,
+            year: todayComps.year,
+            toDisplay: ''
+        },
+        // Computed Properties are properties that are calculated and work reactively.
+        computed: {
+            // Gets the previous months index as arrays start counting from 0 not 1
+            monthIndex() {
+                return this.month - 1;
+            },
+            // Computes the months of the year with their corresponding month number
+            months() {
+                return monthLabels.map((ml, i) => ({
+                    label: transformLabel(ml, monthLength, monthCasing),
+                    number: i + 1,
+                }));
+            },
+            weekdays() {
+                return weekdayLabels.map((wl, i) => {
+                    return {
+                        label: transformLabel(wl, weekdayLength, weekdayCasing),
+                        number: i + 1,
+                    };
+                });
+            },
+            header() {
+                const month = this.months[this.monthIndex];
+                return {
+                    month,
+                    year: this.year.toString(),
+                    shortYear: this.year.toString().substring(2, 4),
+                    label: month.label + ' ' + this.year,
+                };
+            },
+            firstWeekdayInMonth() {
+                return new Date(this.year, this.monthIndex, 1).getDay();
+            },
+            daysInMonth() {      
+                const isFebruary = this.month === 2;
+                const isLeapYear = (this.year % 4 == 0 && this.year % 100 != 0) || this.year % 400 == 0;
+                if (isFebruary && isLeapYear) return 29;
+                return daysInMonths[this.monthIndex];
+            },
+            weeks() {
+                const weeks = [];
+                let monthStarted = false, monthEnded = false;
+                let monthDay = 0;
+                let calcNextMonthNumb = 0;
+                let calcPrevMonthNumb = this.daysInMonth - this.firstWeekdayInMonth + 1;
+                let winner;
+                for (let w = 1; w <= 6 && !monthEnded; w++) {
+                const week = [];
+                    for (let d = 1; d <= 7; d++) {
+                        if (!monthStarted && d >= this.firstWeekdayInMonth) {
+                            monthDay = 1;
+                            monthStarted = true;
+                        } else if (monthStarted && !monthEnded) {
+                            monthDay += 1;
+                        }
+                        else if(monthEnded){
+                            calcNextMonthNumb += 1;
+                            winner = calcNextMonthNumb;
+                        }
+                        else{
+                            calcPrevMonthNumb += 1 ;
+                            winner = calcPrevMonthNumb;
+                        }
+                        week.push({
+                            label: monthDay ? monthDay.toString() : winner,
+                            number: monthDay,
+                            weekdayNumber: d,
+                            weekNumber: w,
+                            beforeMonth: !monthStarted,
+                            afterMonth: monthEnded,
+                            inMonth: monthStarted && !monthEnded,
+                            isToday: monthDay === todayComps.day && this.month === todayComps.month && this.year === todayComps.year,
+                            isFirstDay: monthDay === 1,
+                            isLastDay: monthDay === this.daysInMonth,
+                        });
+                        if (monthStarted && !monthEnded && monthDay >= this.daysInMonth) {
+                            monthDay = 0;
+                            monthEnded = true;
+                        }
+                    }
+                    weeks.push(week);
+                }
+                return weeks;
+            },
+        },
+        // Methods are there for behaviour on the front end
+        methods: {
+            moveThisMonth() {
+                this.month = todayComps.month;
+                this.year = todayComps.year;
+            },
+            moveNextMonth() {
+                if (this.month < 12) {
+                    this.month++;
+                } else {
+                    this.month = 1;
+                    this.year++;
+                }
+            },
+            movePreviousMonth() {
+                if (this.month > 1) {
+                    this.month--;
+                } else {
+                    this.month = 12;
+                    this.year--;
+                }
+            },
+            moveNextYear() {
+                this.year++;
+            },
+            movePreviousYear() {
+                this.year--;
+            },
+            grabValue(event){
+                this.toDisplay=event;
+            }
+        },  
+
+    });
+</script>
+</body>
+</html>
